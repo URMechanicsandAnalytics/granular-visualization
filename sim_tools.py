@@ -10,7 +10,7 @@ class SimParams:
         self.__bed_oper = _SimFileOperators(filepath)
 
         # the initial state of the bed in the simulation
-        self.initial_state: Bed = self.__bed_oper.get_bed_snap()
+        self.initial_state: Bed = Bed(self.__bed_oper.get_bed_snap())
 
         self.timesteps = self.__bed_oper.get_timesteps()
         self.num_timesteps = len(self.timesteps)
@@ -24,12 +24,15 @@ class SimParams:
         self.fields = self.__bed_oper.get_available_fields()
 
     def initial_state_scaled(self) -> Bed:
-        return self.__bed_oper.get_bed_snap(absolute_coords=False)
+        return Bed(self.__bed_oper.get_bed_snap(absolute_coords=False))
 
     def get_bed(self, idx: int = 0, absolute_coords=True, include_only=None) -> Bed:
-        return self.__bed_oper.get_bed_snap(idx=idx, timestep=self.timesteps[idx]['value'],
-                                            absolute_coords=absolute_coords,
-                                            include_only=include_only)
+        return Bed(self.__bed_oper.get_bed_snap(idx=idx, timestep=self.timesteps[idx]['value'],
+                                                absolute_coords=absolute_coords,
+                                                include_only=include_only))
+
+    def render_sim(self) -> dict:
+        return self.__bed_oper.read_timesteps()
 
     def get_bed_oper(self):
         return self.__bed_oper
@@ -96,7 +99,8 @@ class _SimFileOperators:
     def get_bed_snap(self,
                      timestep=None, idx=None,
                      include_only=None,
-                     absolute_coords=True):
+                     absolute_coords=True,
+                     array_form=False):
         """
         Method to get the state of the bed at the specified timestep.
         """
@@ -165,6 +169,11 @@ class _SimFileOperators:
                         except KeyError:
                             print(f"WARNING: key \'y\' was not found as a "
                                   f"parameter for particle {p_ID}!")
+                    if array_form:
+                        data_values = {
+                            p: [v]
+                            for p, v in data_values.items()
+                        }
 
                     out[p_ID] = data_values
                 data_idx += 1
@@ -174,4 +183,42 @@ class _SimFileOperators:
         if not out.pop(self.disc_id, True):
             raise KeyError
 
-        return Bed(out)
+        return out
+
+    def read_timesteps(self) -> dict:
+        out = self.get_bed_snap(array_form=True)
+
+        timesteps = self.get_timesteps()
+        keys_not_added = []
+        for t, v in timesteps.items():
+            bed_snap = self.get_bed_snap(idx=t, timestep=v['value'], include_only=None)
+            for p_ID, p_data in bed_snap.items():
+                for f_name, f_value in p_data.items():
+                    try:
+                        out[p_ID][f_name].append(f_value)
+                        print(f"Added {f_name:15s} for p{p_ID} at t [{t}:{v['value']}]")
+                    except KeyError:
+                        keys_not_added.append(f"p{p_ID} at {t}: {v['value']} was not written in")
+                        pass
+
+        for msg in keys_not_added:
+            print(set(msg))
+        return out
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

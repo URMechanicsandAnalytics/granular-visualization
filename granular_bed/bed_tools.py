@@ -179,5 +179,3 @@ class Bed:
         # todo Call the self.is_array function multiple times I guess...
 
         pass
-
-    def
