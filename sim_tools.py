@@ -19,9 +19,11 @@ class SimParams:
 
         # the initial state of the bed in the simulation
         self.initial_state: granular_bed.bed_tools.Bed = self.__bed_oper.get_bed_snap()
-        self.initial_state_scaled: granular_bed.bed_tools.Bed = self.__bed_oper.get_bed_snap(absolute_coords=False)
-
         self.DISC_ID = self.__bed_oper.disc_id
+
+        @property
+        def initial_state_scaled():
+            return self.__bed_oper.get_bed_snap(absolute_coords=False)
 
     def get_bed_oper(self):
         return self.__bed_oper
