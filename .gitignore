@@ -5,3 +5,4 @@ __pycache__/
 # files
 .vimspector.json
 vis.ipynb
+local_paths.py
