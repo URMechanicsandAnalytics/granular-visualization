@@ -1,0 +1,7 @@
+# directories
+__pycache__/
+.idea/
+
+# files
+.vimspector.json
+vis.ipynb
