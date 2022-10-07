@@ -167,26 +167,3 @@ class _SimFileOperators:
             raise KeyError
 
         return granular_bed.bed_tools.Bed(out)
-
-
-def main() -> None:
-    # filepath = "/home/moosung/projects/Research/Granular/Output/lmpDump_LIS01_unsplit/dmp.reg.LIS01_V1.0_A60"
-    filepath = "/home/moosung/projects/Research/Granular/Output/bennu_raw/lmpDump_A25/iteration_V0.00758_A25/dmp.reg" \
-               ".Bennu_1x_V0.00758_A25"
-    bed = SimParams(filepath)
-
-    # testing 
-    print(bed.timesteps)
-    print("box width -> ", bed.box_width)
-    print("box height -> ", bed.box_height)
-    print("data_idx -> ", bed.DATA_OFFSET)
-    print("dim_idx -> ", bed.DIM_OFFSET)
-    print("disc_idx -> ", bed.DISC_IDX)
-    print("available param -> ", bed.fields)
-
-    # initial timestep
-    print(bed.get_bed_oper().get_bed_snap())
-
-
-if __name__ == "__main__":
-    main()
