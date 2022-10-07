@@ -1,4 +1,4 @@
-import granular_bed.bed_tools
+from granular_vis.granular_bed.bed_tools import Bed
 
 
 class SimParams:
@@ -9,21 +9,27 @@ class SimParams:
     def __init__(self, filepath: str) -> None:
         self.__bed_oper = _SimFileOperators(filepath)
 
-        self.box_width, self.box_height = self.__bed_oper.get_box_dims()
+        # the initial state of the bed in the simulation
+        self.initial_state: Bed = self.__bed_oper.get_bed_snap()
 
         self.timesteps = self.__bed_oper.get_timesteps()
+        self.num_timesteps = len(self.timesteps)
+
         self.num_particles = self.__bed_oper.get_num_particles()
+        self.box_width, self.box_height = self.__bed_oper.get_box_dims()
+
         self.DIM_OFFSET = self.__bed_oper.get_dim_idx()
         self.DATA_OFFSET = self.__bed_oper.get_data_idx()
+        self.DISC_ID = self.__bed_oper.disc_id
         self.fields = self.__bed_oper.get_available_fields()
 
-        # the initial state of the bed in the simulation
-        self.initial_state: granular_bed.bed_tools.Bed = self.__bed_oper.get_bed_snap()
-        self.DISC_ID = self.__bed_oper.disc_id
+    def initial_state_scaled(self) -> Bed:
+        return self.__bed_oper.get_bed_snap(absolute_coords=False)
 
-        @property
-        def initial_state_scaled():
-            return self.__bed_oper.get_bed_snap(absolute_coords=False)
+    def get_bed(self, idx: int = 0, absolute_coords=True, include_only=None) -> Bed:
+        return self.__bed_oper.get_bed_snap(idx=idx, timestep=self.timesteps[idx]['value'],
+                                            absolute_coords=absolute_coords,
+                                            include_only=include_only)
 
     def get_bed_oper(self):
         return self.__bed_oper
@@ -114,7 +120,7 @@ class _SimFileOperators:
                 f"does not match the TIMESTEP passed in the argument: "
                 f" {timesteps[idx]['value']}")
 
-        data_idx = self.get_data_idx()
+        data_idx = timesteps[idx]['line'] + self.get_data_idx()
         out: dict = {}
         self.disc_id = 0
         try:
@@ -168,4 +174,4 @@ class _SimFileOperators:
         if not out.pop(self.disc_id, True):
             raise KeyError
 
-        return granular_bed.bed_tools.Bed(out)
+        return Bed(out)

@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from granular_bed.profiles import BedProfile
+from granular_vis.granular_bed.profiles import BedProfile
 
 
 class Bed:
@@ -179,3 +179,5 @@ class Bed:
         # todo Call the self.is_array function multiple times I guess...
 
         pass
+
+    def
