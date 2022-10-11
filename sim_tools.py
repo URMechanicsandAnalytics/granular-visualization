@@ -190,6 +190,7 @@ class _SimFileOperators:
 
         timesteps = self.get_timesteps()
         keys_not_added = []
+        # TODO multithreading here.
         for t, v in timesteps.items():
             bed_snap = self.get_bed_snap(idx=t, timestep=v['value'], include_only=None)
             for p_ID, p_data in bed_snap.items():
