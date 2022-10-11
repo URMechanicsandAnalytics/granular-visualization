@@ -1,4 +1,7 @@
 from granular_vis.granular_bed.bed_tools import Bed
+from concurrent.futures import ThreadPoolExecutor
+from time import perf_counter
+import numpy as np
 
 
 class SimParams:
@@ -26,16 +29,77 @@ class SimParams:
     def initial_state_scaled(self) -> Bed:
         return Bed(self.__bed_oper.get_bed_snap(absolute_coords=False))
 
-    def get_bed(self, idx: int = 0, absolute_coords=True, include_only=None) -> Bed:
+    def get_bed_static(self, idx: int = 0, absolute_coords=True, include_only=None) -> Bed:
         return Bed(self.__bed_oper.get_bed_snap(idx=idx, timestep=self.timesteps[idx]['value'],
                                                 absolute_coords=absolute_coords,
                                                 include_only=include_only))
 
-    def render_sim(self) -> dict:
-        return self.__bed_oper.read_timesteps()
+    def get_bed_dynamic(self, idx: int = 0, absolute_coords=True, include_only=None) -> Bed:
+        """
+        Method to get the expanded data
+        """
+        out: dict = {}
+        """
+        p_ID : {
+            ax : [...],
+            vx : [...]
+        },
+        p_ID : {
+            ax : [...],
+            vx : [...]
+        },
+        ...
+        """
+        for p_ID, fields in self.render_bed.items():
+            if include_only is not None:
+                if p_ID not in include_only:
+                    continue
+            out[p_ID] = {
+                field: f_array[idx]
+                for field, f_array in fields.items()
+            }
+
+        return Bed(out)
+
+    def render_bed_multi(self) -> None:
+        self.render_bed = self.__bed_oper.read_timesteps_multi()
+        self.differentiate()
+
+    def render_bed_single(self) -> None:
+        self.render_bed = self.__bed_oper.read_timesteps_single()
+        self.differentiate()
 
     def get_bed_oper(self):
         return self.__bed_oper
+
+    def differentiate(self) -> None:
+        """
+        Method to differentiate the x and y datas to get velocity and acceleration
+        """
+        num_timesteps = self.num_timesteps
+        for time_data, value in self.render_bed.items():
+            x = [i for i in value if i in ["xs", "x"]][0]
+            y = [i for i in value if i in ["ys", "y"]][0]
+            x_arr = value[x]
+            y_arr = value[y]
+
+            if x == 'x':
+                v_x = np.gradient(x_arr, num_timesteps)
+                self.render_bed[time_data]['v_x'] = v_x
+                self.render_bed[time_data]['a_x'] = np.gradient(v_x, num_timesteps)
+            elif x == "xs":
+                vs_x = np.gradient(x_arr, num_timesteps)
+                self.render_bed[time_data]['vs_x'] = vs_x
+                self.render_bed[time_data]['as_x'] = np.gradient(vs_x, num_timesteps)
+
+            if y == 'y':
+                v_y = np.gradient(y_arr, num_timesteps)
+                self.render_bed[time_data]['v_y'] = v_y
+                self.render_bed[time_data]['a_y'] = np.gradient(v_y, num_timesteps)
+            elif y == "ys":
+                vs_y = np.gradient(y_arr, num_timesteps)
+                self.render_bed[time_data]['vs_y'] = vs_y
+                self.render_bed[time_data]['as_y'] = np.gradient(vs_y, num_timesteps)
 
 
 class _SimFileOperators:
@@ -100,7 +164,7 @@ class _SimFileOperators:
                      timestep=None, idx=None,
                      include_only=None,
                      absolute_coords=True,
-                     array_form=False):
+                     array_form=False) -> dict:
         """
         Method to get the state of the bed at the specified timestep.
         """
@@ -185,22 +249,61 @@ class _SimFileOperators:
 
         return out
 
-    def read_timesteps(self) -> dict:
-        out = self.get_bed_snap(array_form=True)
+    def read_timesteps_multi(self):  # -> dict:
+        out_multi = self.get_bed_snap(array_form=True)
+        keys_not_added_multi = []
 
         timesteps = self.get_timesteps()
-        keys_not_added = []
-        # TODO multithreading here.
-        for t, v in timesteps.items():
-            out,keys_not_added = self.__add_entry_t(out=out,
-                                                   t=t, v=v,
-                                                   keys_not_added=keys_not_added)
+        ts = [t for t in timesteps]
+        vs = [timesteps[t] for t in timesteps]
 
-        for msg in list(set(keys_not_added)):
+        def __add_entry_t(t, v):
+            bed_snap = self.get_bed_snap(idx=t, timestep=v['value'], include_only=None)
+            for p_ID, p_data in bed_snap.items():
+                for f_name, f_value in p_data.items():
+                    try:
+                        out_multi[p_ID][f_name].append(f_value)
+                    except KeyError:
+                        keys_not_added_multi.append(f"{f_name:15s} for p{p_ID} at t{t}-->{v['value']} not added.")
+                        pass
+
+        workers = 4
+        print(f"Testing Multithreading ({workers} workers)")
+        start_multi = perf_counter()
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            executor.map(__add_entry_t, ts, vs)
+        print("End Test Multithreading")
+        end_multi = perf_counter()
+
+        for msg in list(set(keys_not_added_multi)):
             print(msg)
-        return out
+        print(f"\nMulti Time: {end_multi - start_multi}")
+
+        return out_multi
+
+    def read_timesteps_single(self):
+        out_single = self.get_bed_snap(array_form=True)
+        keys_not_added_single = []
+        timesteps = self.get_timesteps()
+
+        print("Start Single")
+        start_single = perf_counter()
+        for t, v in timesteps.items():
+            out_single, keys_not_added_single = self.__add_entry_t(out=out_single,
+                                                                   t=t, v=v,
+                                                                   keys_not_added=keys_not_added_single)
+        print("End Test Single")
+        end_single = perf_counter()
+        for msg in list(set(keys_not_added_single)):
+            print(msg)
+        print(f"Single Time: {end_single - start_single}")
+
+        return out_single
 
     def __add_entry_t(self, **kwargs) -> tuple:
+        """
+        Method to add a single entry to the rendered datafile
+        """
         out = kwargs["out"]
         keys_not_added = kwargs["keys_not_added"]
         t = kwargs["t"]
@@ -211,47 +314,10 @@ class _SimFileOperators:
             for f_name, f_value in p_data.items():
                 try:
                     out[p_ID][f_name].append(f_value)
-                    print(f"Added {f_name:15s} for p{p_ID} at t{t}-->{v['value']}")
+                    # print(f"Added {f_name:15s} for p{p_ID} at t{t}-->{v['value']}")
                 except KeyError:
                     keys_not_added.append(f"{f_name:15s} for p{p_ID} at t{t}-->{v['value']} not added.")
                     pass
-        print("")
+        # print("")
 
-        return out,keys_not_added
-
-    @staticmethod
-    def __add_entry(**kwargs) -> dict:
-        out = kwargs["out"]
-        t = kwargs["t"]
-        v = kwargs["v"]
-        p_ID = kwargs["p_ID"]
-        f_value = kwargs["f_value"]
-        f_name = kwargs["f_name"]
-        keys_not_added = kwargs["keys_not_added"]
-
-        try:
-            out[p_ID][f_name].append(f_value)
-            print(f"Added {f_name:15s} for p{p_ID} at t{t}-->{v['value']}")
-        except KeyError:
-            keys_not_added.append(f"{f_name:15s} for p{p_ID} at t{t}-->{v['value']} not added.")
-            pass
-
-        return out
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return out, keys_not_added
