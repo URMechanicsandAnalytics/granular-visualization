@@ -192,18 +192,50 @@ class _SimFileOperators:
         keys_not_added = []
         # TODO multithreading here.
         for t, v in timesteps.items():
-            bed_snap = self.get_bed_snap(idx=t, timestep=v['value'], include_only=None)
-            for p_ID, p_data in bed_snap.items():
-                for f_name, f_value in p_data.items():
-                    try:
-                        out[p_ID][f_name].append(f_value)
-                        print(f"Added {f_name:15s} for p{p_ID} at t [{t}:{v['value']}]")
-                    except KeyError:
-                        keys_not_added.append(f"p{p_ID} at {t}: {v['value']} was not written in")
-                        pass
+            out,keys_not_added = self.__add_entry_t(out=out,
+                                                   t=t, v=v,
+                                                   keys_not_added=keys_not_added)
 
-        for msg in keys_not_added:
-            print(set(msg))
+        for msg in list(set(keys_not_added)):
+            print(msg)
+        return out
+
+    def __add_entry_t(self, **kwargs) -> tuple:
+        out = kwargs["out"]
+        keys_not_added = kwargs["keys_not_added"]
+        t = kwargs["t"]
+        v = kwargs["v"]
+
+        bed_snap = self.get_bed_snap(idx=t, timestep=v['value'], include_only=None)
+        for p_ID, p_data in bed_snap.items():
+            for f_name, f_value in p_data.items():
+                try:
+                    out[p_ID][f_name].append(f_value)
+                    print(f"Added {f_name:15s} for p{p_ID} at t{t}-->{v['value']}")
+                except KeyError:
+                    keys_not_added.append(f"{f_name:15s} for p{p_ID} at t{t}-->{v['value']} not added.")
+                    pass
+        print("")
+
+        return out,keys_not_added
+
+    @staticmethod
+    def __add_entry(**kwargs) -> dict:
+        out = kwargs["out"]
+        t = kwargs["t"]
+        v = kwargs["v"]
+        p_ID = kwargs["p_ID"]
+        f_value = kwargs["f_value"]
+        f_name = kwargs["f_name"]
+        keys_not_added = kwargs["keys_not_added"]
+
+        try:
+            out[p_ID][f_name].append(f_value)
+            print(f"Added {f_name:15s} for p{p_ID} at t{t}-->{v['value']}")
+        except KeyError:
+            keys_not_added.append(f"{f_name:15s} for p{p_ID} at t{t}-->{v['value']} not added.")
+            pass
+
         return out
 
 
