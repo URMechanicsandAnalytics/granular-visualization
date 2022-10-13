@@ -27,7 +27,7 @@ class Bed:
             np.array([
                 [v for k, v in self.get_data('x').items() if k in condition_bed],
                 [v for k, v in self.get_data('y').items() if k in condition_bed],
-                [v for k, v in self.get_data('r').items() if k in condition_bed]
+                [v for k, v in self.get_data('radius').items() if k in condition_bed]
             ]).T
         )
 
@@ -43,7 +43,7 @@ class Bed:
         """
         # checking if the input parameter is correct
         if parameter not in list(next(iter(self.__bed_snap.items()))[1].keys()):
-            raise KeyError("Input parameter was not found.")
+            raise KeyError(f"Input parameter \"{parameter}\" was not found.")
 
         if as_array:
             return [v[parameter] for v in iter(self.__bed_snap.values())]
